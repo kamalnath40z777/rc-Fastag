@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import VehicleForm from "@/components/VehicleForm";
 import RCTemplate from "@/components/RCTemplate";
 import BalanceSection from "@/components/BalanceSection";
 import TransactionHistory from "@/components/TransactionHistory";
-import { Car, FileText, Wallet, History } from "lucide-react";
+import { Car, FileText, Wallet, History, Database } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [balance, setBalance] = useState(100); // Default balance
   const [rcData, setRCData] = useState(null);
   const [activeTab, setActiveTab] = useState("generate");
@@ -58,7 +59,7 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 bg-[image:var(--gradient-card)] shadow-[var(--shadow-card)] backdrop-blur-sm border-0">
+          <TabsList className="grid w-full grid-cols-5 mb-8 bg-[image:var(--gradient-card)] shadow-[var(--shadow-card)] backdrop-blur-sm border-0">
             <TabsTrigger value="generate" className="flex items-center gap-2 data-[state=active]:bg-[image:var(--gradient-primary)] data-[state=active]:text-white transition-all duration-300 hover:scale-105">
               <Car className="h-4 w-4" />
               <span className="hidden sm:inline">Generate RC</span>
@@ -75,42 +76,45 @@ const Index = () => {
               <History className="h-4 w-4" />
               <span className="hidden sm:inline">History</span>
             </TabsTrigger>
+            <TabsTrigger value="vehicles" className="flex items-center gap-2 data-[state=active]:bg-[image:var(--gradient-primary)] data-[state=active]:text-white transition-all duration-300 hover:scale-105" onClick={() => navigate('/vehicles')}>
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Vehicles</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="generate" className="space-y-8">
-            <div className="flex flex-col xl:flex-row gap-8 items-start">
-              <div className="xl:w-1/2">
-                <VehicleForm 
-                  onRCGenerated={handleRCGenerated}
-                  balance={balance}
-                  onBalanceUpdate={handleBalanceUpdate}
-                />
-              </div>
-              <div className="xl:w-1/2">
-                <BalanceSection 
-                  balance={balance}
-                  onBalanceUpdate={handleBalanceUpdate}
-                />
-              </div>
+            <div className="text-center py-16">
+              <Database className="h-16 w-16 mx-auto mb-4 text-primary opacity-50" />
+              <h3 className="text-2xl font-semibold mb-4">Vehicle PDF Generator</h3>
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                Create professional vehicle registration certificates with custom templates. 
+                Manage your vehicle database and generate PDFs with precise field positioning.
+              </p>
+              <button
+                onClick={() => navigate('/vehicles')}
+                className="bg-[image:var(--gradient-primary)] text-white px-8 py-3 rounded-lg hover:shadow-[var(--shadow-glow)] transition-all duration-300 transform hover:scale-105 font-semibold"
+              >
+                Go to Vehicle Management
+              </button>
             </div>
             
             <div className="bg-[image:var(--gradient-card)] p-8 rounded-2xl shadow-[var(--shadow-card)] border border-primary/10 animate-fade-in">
-              <h3 className="font-bold text-xl bg-[image:var(--gradient-primary)] bg-clip-text text-transparent mb-6 text-center">How it works:</h3>
+              <h3 className="font-bold text-xl bg-[image:var(--gradient-primary)] bg-clip-text text-transparent mb-6 text-center">New Features:</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="flex flex-col items-center text-center group hover:scale-105 transition-transform duration-300">
                   <div className="bg-[image:var(--gradient-primary)] text-white rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold shadow-[var(--shadow-glow)] mb-3 group-hover:animate-glow">1</div>
-                  <div className="font-medium text-foreground">Enter Vehicle Number</div>
-                  <div className="text-sm text-muted-foreground mt-1">Input your vehicle number in the correct format</div>
+                  <div className="font-medium text-foreground">Vehicle Database</div>
+                  <div className="text-sm text-muted-foreground mt-1">Manage comprehensive vehicle records with all details</div>
                 </div>
                 <div className="flex flex-col items-center text-center group hover:scale-105 transition-transform duration-300">
                   <div className="bg-[image:var(--gradient-accent)] text-white rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold shadow-[var(--shadow-glow)] mb-3 group-hover:animate-glow">2</div>
-                  <div className="font-medium text-foreground">Smart Verification</div>
-                  <div className="text-sm text-muted-foreground mt-1">System checks cache first to avoid duplicate charges</div>
+                  <div className="font-medium text-foreground">Custom PDF Templates</div>
+                  <div className="text-sm text-muted-foreground mt-1">Generate PDFs with background templates and precise positioning</div>
                 </div>
                 <div className="flex flex-col items-center text-center group hover:scale-105 transition-transform duration-300">
                   <div className="bg-[image:var(--gradient-primary)] text-white rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold shadow-[var(--shadow-glow)] mb-3 group-hover:animate-glow">3</div>
-                  <div className="font-medium text-foreground">Download Certificate</div>
-                  <div className="text-sm text-muted-foreground mt-1">Generate and download your RC as PDF instantly</div>
+                  <div className="font-medium text-foreground">Bulk Export</div>
+                  <div className="text-sm text-muted-foreground mt-1">Select multiple vehicles and export as ZIP archive</div>
                 </div>
               </div>
             </div>

@@ -1,21 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Loader2, FileText } from "lucide-react";
+import { Save, FileText, Plus, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Vehicle, VehicleFormData } from "@/types/Vehicle";
+import { VehicleService } from "@/services/vehicleService";
 
 interface VehicleFormProps {
-  onRCGenerated: (rcData: any) => void;
-  balance: number;
-  onBalanceUpdate: (newBalance: number) => void;
+  vehicle?: Vehicle;
+  onSave: (vehicle: Vehicle) => void;
+  onCancel: () => void;
 }
 
-const VehicleForm = ({ onRCGenerated, balance, onBalanceUpdate }: VehicleFormProps) => {
-  const [vehicleNumber, setVehicleNumber] = useState("");
+const VehicleForm = ({ vehicle, onSave, onCancel }: VehicleFormProps) => {
+  const [formData, setFormData] = useState<VehicleFormData>({
+    vehicleNumber: '',
+    ownerName: '',
+    vehicleClass: '',
+    fuelType: '',
+    chassisNumber: '',
+    engineNumber: '',
+    manufacturer: '',
+    model: '',
+    registrationDate: '',
+    insuranceValidTill: '',
+    rtoOffice: '',
+    ownerAddress: '',
+  });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (vehicle) {
+      setFormData({
+        vehicleNumber: vehicle.vehicleNumber || '',
+        ownerName: vehicle.ownerName || '',
+        vehicleClass: vehicle.vehicleClass || '',
+        fuelType: vehicle.fuelType || '',
+        chassisNumber: vehicle.chassisNumber || '',
+        engineNumber: vehicle.engineNumber || '',
+        manufacturer: vehicle.manufacturer || '',
+        model: vehicle.model || '',
+        registrationDate: vehicle.registrationDate || '',
+        insuranceValidTill: vehicle.insuranceValidTill || '',
+        rtoOffice: vehicle.rtoOffice || '',
+        ownerAddress: vehicle.ownerAddress || '',
+      });
+    }
+  }, [vehicle]);
 
   const formatVehicleNumber = (value: string) => {
     // Remove any non-alphanumeric characters and convert to uppercase
@@ -28,20 +64,19 @@ const VehicleForm = ({ onRCGenerated, balance, onBalanceUpdate }: VehicleFormPro
     return cleaned.slice(0, 2) + ' ' + cleaned.slice(2, 4) + ' ' + cleaned.slice(4, 6) + ' ' + cleaned.slice(6, 10);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVehicleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatVehicleNumber(e.target.value);
-    setVehicleNumber(formatted);
+    setFormData(prev => ({ ...prev, vehicleNumber: formatted }));
   };
 
-  const validateVehicleNumber = (vrn: string) => {
-    const cleanVRN = vrn.replace(/\s/g, '');
-    // Indian vehicle number pattern: 2 letters + 2 digits + 2 letters + 4 digits
-    const pattern = /^[A-Z]{2}[0-9]{2}[A-Z]{2}[0-9]{4}$/;
-    return pattern.test(cleanVRN);
+  const handleInputChange = (field: keyof VehicleFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleGetRC = async () => {
-    if (!vehicleNumber.trim()) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.vehicleNumber?.trim()) {
       toast({
         title: "Error",
         description: "Please enter a vehicle number",
@@ -50,88 +85,35 @@ const VehicleForm = ({ onRCGenerated, balance, onBalanceUpdate }: VehicleFormPro
       return;
     }
 
-    const cleanVRN = vehicleNumber.replace(/\s/g, '');
-    
-    if (!validateVehicleNumber(cleanVRN)) {
-      toast({
-        title: "Invalid Format",
-        description: "Please enter a valid vehicle number (e.g., TN01AB1234)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (balance < 5) {
-      toast({
-        title: "Insufficient Balance",
-        description: "Please top up your balance. Each RC generation costs ₹5",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check local storage first
-    const cachedRC = localStorage.getItem(`rc_${cleanVRN}`);
-    if (cachedRC) {
-      const rcData = JSON.parse(cachedRC);
-      onRCGenerated(rcData);
-      toast({
-        title: "RC Retrieved",
-        description: "RC found in local storage (no charge applied)",
-        variant: "default",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const response = await fetch('https://api.apnirc.xyz/api/b2b/get-rc', {
-        method: 'POST',
-        headers: {
-          'Authorization': '17530789240GxPl0JFkQVoG1CF2OBpiwhzEye5leHLkl5feXRaw9b3gYfoAhNainjQAIF09jnirEcG6GmPoutBIDya',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ vrn: cleanVRN }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data) {
-        // Store in local storage
-        localStorage.setItem(`rc_${cleanVRN}`, JSON.stringify(data));
-        
-        // Update balance
-        const newBalance = balance - 5;
-        onBalanceUpdate(newBalance);
-        localStorage.setItem('balance', newBalance.toString());
-
-        // Store transaction
-        const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-        const transaction = {
-          id: Date.now(),
-          vehicleNumber: cleanVRN,
-          timestamp: new Date().toISOString(),
-          cost: 5,
-          type: 'rc_generation'
-        };
-        transactions.push(transaction);
-        localStorage.setItem('transactions', JSON.stringify(transactions));
-
-        onRCGenerated(data);
+      let savedVehicle: Vehicle;
+      
+      if (vehicle) {
+        // Update existing vehicle
+        savedVehicle = VehicleService.updateVehicle(vehicle.id, formData)!;
         toast({
-          title: "RC Generated Successfully",
-          description: `₹5 deducted from your balance. Remaining: ₹${newBalance}`,
+          title: "Vehicle Updated",
+          description: "Vehicle information has been updated successfully",
           variant: "default",
         });
       } else {
-        throw new Error(data.message || 'Failed to fetch RC data');
+        // Create new vehicle
+        savedVehicle = VehicleService.createVehicle(formData);
+        toast({
+          title: "Vehicle Created",
+          description: "New vehicle has been added successfully",
+          variant: "default",
+        });
       }
+      
+      onSave(savedVehicle);
     } catch (error) {
-      console.error('Error fetching RC:', error);
+      console.error('Error saving vehicle:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch RC data. Please try again.",
+        description: "Failed to save vehicle. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -139,96 +121,241 @@ const VehicleForm = ({ onRCGenerated, balance, onBalanceUpdate }: VehicleFormPro
     }
   };
 
-  const handleSampleRC = () => {
-    const sampleData = {
-      vehicleNumber: "TN01AB1234",
-      ownerName: "RAJESH KUMAR",
-      vehicleClass: "MCWG (Motor Cycle With Gear)",
-      fuelType: "PETROL",
-      chassisNumber: "ME4JF48DXJK123456",
-      engineNumber: "JF48DFH123456",
-      manufacturer: "BAJAJ AUTO LTD",
-      model: "PULSAR 150",
-      registrationDate: "2023-01-15",
-      insuranceValidTill: "2024-12-31",
-      rtoOffice: "RTO CHENNAI CENTRAL",
-      ownerAddress: "No.45, Gandhi Street, T.Nagar, Chennai - 600017, Tamil Nadu"
-    };
-    
-    onRCGenerated(sampleData);
-    toast({
-      title: "Sample RC Loaded",
-      description: "Preview sample RC document - no charges applied",
-      variant: "default",
-    });
+  const vehicleClasses = [
+    'MCWG (Motor Cycle With Gear)',
+    'MCWOG (Motor Cycle Without Gear)',
+    'LMV (Light Motor Vehicle)',
+    'HMV (Heavy Motor Vehicle)',
+    'TRANS (Transport Vehicle)',
+    'TRACTOR',
+    'TRAILER',
+  ];
+
+  const fuelTypes = [
+    'PETROL',
+    'DIESEL',
+    'CNG',
+    'LPG',
+    'ELECTRIC',
+    'HYBRID',
+  ];
+
+  const manufacturers = [
+    'BAJAJ AUTO LTD',
+    'HERO MOTOCORP LTD',
+    'HONDA MOTORCYCLE & SCOOTER INDIA PVT LTD',
+    'MARUTI SUZUKI INDIA LTD',
+    'HYUNDAI MOTOR INDIA LTD',
+    'TATA MOTORS LTD',
+    'MAHINDRA & MAHINDRA LTD',
+    'TOYOTA KIRLOSKAR MOTOR PVT LTD',
+    'FORD INDIA PVT LTD',
+    'VOLKSWAGEN INDIA PVT LTD',
+  ];
+
+  const rtoOffices = [
+    'RTO CHENNAI CENTRAL',
+    'RTO CHENNAI NORTH',
+    'RTO CHENNAI SOUTH',
+    'RTO BANGALORE EAST',
+    'RTO BANGALORE WEST',
+    'RTO MUMBAI CENTRAL',
+    'RTO DELHI',
+    'RTO PUNE',
+    'RTO HYDERABAD',
+    'RTO KOLKATA',
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-[var(--shadow-elegant)] bg-[image:var(--gradient-card)] border-0 animate-scale-in">
+    <Card className="w-full max-w-2xl mx-auto shadow-[var(--shadow-elegant)] bg-[image:var(--gradient-card)] border-0 animate-scale-in">
       <CardHeader className="text-center pb-6">
         <CardTitle className="text-2xl font-bold bg-[image:var(--gradient-primary)] bg-clip-text text-transparent mb-2">
-          Vehicle RC Generator
+          {vehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
         </CardTitle>
         <CardDescription className="text-base text-muted-foreground">
-          Enter your vehicle number to generate RC document instantly
+          {vehicle ? 'Update vehicle information' : 'Enter vehicle details to create a new record'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="vehicle-number">Vehicle Number</Label>
-          <Input
-            id="vehicle-number"
-            type="text"
-            placeholder="TN 01 AB 1234"
-            value={vehicleNumber}
-            onChange={handleInputChange}
-            maxLength={13}
-            className="text-center font-mono text-lg tracking-wider"
-          />
-          <p className="text-xs text-muted-foreground text-center">
-            Format: State Code + District + Series + Number
-          </p>
-        </div>
-        
-        <div className="bg-[image:var(--gradient-accent)] p-4 rounded-xl text-white shadow-[var(--shadow-card)]">
-          <div className="flex justify-between items-center">
-            <span className="font-medium">Current Balance:</span>
-            <span className="font-bold text-xl">₹{balance}</span>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-number">Vehicle Number *</Label>
+              <Input
+                id="vehicle-number"
+                type="text"
+                placeholder="TN 01 AB 1234"
+                value={formData.vehicleNumber}
+                onChange={handleVehicleNumberChange}
+                maxLength={13}
+                className="font-mono text-lg tracking-wider"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="owner-name">Owner Name</Label>
+              <Input
+                id="owner-name"
+                type="text"
+                placeholder="Enter owner name"
+                value={formData.ownerName}
+                onChange={(e) => handleInputChange('ownerName', e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="vehicle-class">Vehicle Class</Label>
+              <Select value={formData.vehicleClass} onValueChange={(value) => handleInputChange('vehicleClass', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select vehicle class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicleClasses.map((cls) => (
+                    <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="fuel-type">Fuel Type</Label>
+              <Select value={formData.fuelType} onValueChange={(value) => handleInputChange('fuelType', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select fuel type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fuelTypes.map((fuel) => (
+                    <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="chassis-number">Chassis Number</Label>
+              <Input
+                id="chassis-number"
+                type="text"
+                placeholder="Enter chassis number"
+                value={formData.chassisNumber}
+                onChange={(e) => handleInputChange('chassisNumber', e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="engine-number">Engine Number</Label>
+              <Input
+                id="engine-number"
+                type="text"
+                placeholder="Enter engine number"
+                value={formData.engineNumber}
+                onChange={(e) => handleInputChange('engineNumber', e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="manufacturer">Manufacturer</Label>
+              <Select value={formData.manufacturer} onValueChange={(value) => handleInputChange('manufacturer', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select manufacturer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {manufacturers.map((mfg) => (
+                    <SelectItem key={mfg} value={mfg}>{mfg}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="model">Model</Label>
+              <Input
+                id="model"
+                type="text"
+                placeholder="Enter vehicle model"
+                value={formData.model}
+                onChange={(e) => handleInputChange('model', e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="registration-date">Registration Date</Label>
+              <Input
+                id="registration-date"
+                type="date"
+                value={formData.registrationDate}
+                onChange={(e) => handleInputChange('registrationDate', e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="insurance-valid-till">Insurance Valid Till</Label>
+              <Input
+                id="insurance-valid-till"
+                type="date"
+                value={formData.insuranceValidTill}
+                onChange={(e) => handleInputChange('insuranceValidTill', e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="rto-office">RTO Office</Label>
+              <Select value={formData.rtoOffice} onValueChange={(value) => handleInputChange('rtoOffice', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select RTO office" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rtoOffices.map((rto) => (
+                    <SelectItem key={rto} value={rto}>{rto}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="text-sm opacity-90 mt-2 flex items-center gap-2">
-            <span>💳</span>
-            <span>Each RC generation costs ₹5</span>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <Button 
-            onClick={handleGetRC} 
-            disabled={loading || balance < 5}
-            className="w-full bg-[image:var(--gradient-primary)] hover:shadow-[var(--shadow-glow)] transition-all duration-300 transform hover:scale-105 text-white border-0 h-12 text-base font-semibold"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating RC...
-              </>
-            ) : (
-              <>
-                <Search className="mr-2 h-5 w-5" />
-                Get RC Document
-              </>
-            )}
-          </Button>
           
-          <Button 
-            onClick={handleSampleRC}
-            variant="outline"
-            className="w-full border-2 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all duration-300"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            View Sample RC
-          </Button>
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="owner-address">Owner Address</Label>
+            <Textarea
+              id="owner-address"
+              placeholder="Enter complete address"
+              value={formData.ownerAddress}
+              onChange={(e) => handleInputChange('ownerAddress', e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="flex gap-3 pt-6">
+            <Button 
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-[image:var(--gradient-primary)] hover:shadow-[var(--shadow-glow)] transition-all duration-300 transform hover:scale-105 text-white border-0 h-12 text-base font-semibold"
+            >
+              {loading ? (
+                <>
+                  <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-5 w-5" />
+                  {vehicle ? 'Update Vehicle' : 'Save Vehicle'}
+                </>
+              )}
+            </Button>
+            
+            <Button 
+              type="button"
+              onClick={onCancel}
+              variant="outline"
+              className="border-2 border-primary/20 hover:border-primary/40 hover:bg-primary/5 transition-all duration-300"
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );
